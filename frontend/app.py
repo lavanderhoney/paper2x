@@ -1,5 +1,6 @@
 import streamlit as st
 import time
+import requests
 from io import BytesIO
 
 def main():
@@ -53,11 +54,35 @@ def main():
         
         # Add buttons after successful upload
         col1, col2, col3, col4 = st.columns([1,1,1,1])  # Create three columns for the buttons
+        want_ppt: bool = True
+        clicked: bool = False
         with col2:
-            st.button("Convert to PPT")
-
+            if st.button("Convert to PPT"):
+                want_ppt = True
+                clicked = True
         with col3:
-            st.button("Get Podcast Audio")
+            if st.button("Get Podcast Audio"):
+                want_ppt = False
+                clicked = True
+        
+        # Send the file to the backend
+        if clicked:
+            st.write("Sending request...")
+            with st.spinner("Processing the PDF..."):
+                time.sleep(2)
+                try:
+                    response = requests.post(
+                        "http://localhost:8000/generate-ppt",
+                        data={"want_ppt": want_ppt},
+                        files={"file":(uploaded_file.name, uploaded_file, "application/pdf")}
+                    )
+                    if response.status_code == 200:
+                        st.success("PPT generated successfully!")
+                        st.write(response.json())
+                    else:
+                        st.error(f"Failed to send PDF: {response.status_code} - {response.text}")
+                except Exception as e:
+                   st.error(f"An error occurred: {e}")
 
 if __name__ == "__main__":
     main()
