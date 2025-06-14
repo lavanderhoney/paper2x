@@ -1,11 +1,10 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
 import shutil
 import os
 import uuid
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from langgraph.graph import StateGraph
 from typing import Dict, Any
 from pydantic import BaseModel
-# Import your existing functions and graph setup
 from agent import graph, ResPaperExtractState, PPTPresentation, Conversation
 
 app = FastAPI()
@@ -25,10 +24,13 @@ class PPTResponse(BaseModel):
 def read_root():
     return {"message": "Hello, World!"}
 
+#from the frontend, get want_ppt along with the file
 @app.post("/generate-ppt")
-def generate_ppt(file: UploadFile = File(...)):
+def generate_ppt(file: UploadFile = File(...), want_ppt: bool = True):
     """Endpoint to process a PDF file and generate structured PPT content."""
-    file_id = str(uuid.uuid4())  # Generate a unique identifier
+    # file_id = str(uuid.uuid4())  # Generate a unique identifier
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No filename provided in uploaded file.")
     pdf_path = os.path.join(UPLOAD_DIR, file.filename)
     
     try:
@@ -36,16 +38,16 @@ def generate_ppt(file: UploadFile = File(...)):
             shutil.copyfileobj(file.file, buffer)
         
         # Initialize state
-        state: ResPaperExtractState = {"pdf_path": pdf_path}
+        state: ResPaperExtractState = ResPaperExtractState(pdf_path=pdf_path, want_ppt=want_ppt)
         
         # Run the graph workflow
         result: Dict[str, Any] = graph.invoke(state)
         print("Graph invocation result:", result)
        
         # Store results using the unique ID
-        processed_results[file_id] = result
+        # processed_results[file_id] = result
         
-        return {"file_id": file_id}  # Return the ID for retrieval
+        return result
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
@@ -62,7 +64,7 @@ def get_ppt(file_id: str):
     if not result:
         raise HTTPException(status_code=404, detail="File ID not found")
 
-    ppt_object: PPTPresentation = result.get("ppt_object")
+    ppt_object: PPTPresentation = result.ppt_object
     return ppt_object
 
 

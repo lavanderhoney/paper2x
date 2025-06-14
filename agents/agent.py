@@ -44,14 +44,15 @@ class Conversation(BaseModel):
     clay: List[Dialogue] = Field(..., description="Clay's dialogues")
     order: List[str] = Field(..., description="The order of dialogues denoted by the names of the speaker")
 
-class ResPaperExtractState(TypedDict):
-    pdf_path: Optional[str] = None  # Path to the PDF file
-    extracted_text: Optional[str] = None  # Full extracted text from the PDF
-    extracted_images: Optional[Dict[str,str]] = None  # Paths to extracted images
+class ResPaperExtractState(BaseModel): #TO-DO: Use Pydantic model
+    pdf_path: Optional[str]  # Path to the PDF file
+    want_ppt: bool = True # Flag to be used in conditional edge to decide whether to generate ppt or podcast
+    extracted_text: Optional[str] = None # Full extracted text from the PDF
+    extracted_images: Optional[Dict[str,str]] = None# Paths to extracted images
     slides_content: Optional[List[Dict[str, str]]] = None  # Prepared content for PowerPoint slides
-    ppt_object: PPTPresentation
+    ppt_object: Optional[PPTPresentation] = None  # PPTPresentation object containing structured PPT data
     summary_text: Optional[str] = None
-    convo: Conversation = None
+    convo: Optional[Conversation] = None  # Conversation object containing structured dialogue data
 
 def clean_markdown_output(llm_out: str) -> str:
     # Remove leading and trailing triple backticks if present
@@ -60,7 +61,7 @@ def clean_markdown_output(llm_out: str) -> str:
     return re.sub(r"^```(?:json)?\n?|```$", "", llm_out.strip())
 
 def load_pdf(state: ResPaperExtractState):
-    pdf_path = state["pdf_path"]
+    pdf_path = state.pdf_path
     doc = fitz.open(pdf_path)  # Load the PDF only once
     
     extracted_text = []
@@ -70,9 +71,10 @@ def load_pdf(state: ResPaperExtractState):
 
     # Iterate through each page
     img_cntr=1
-    for page_number, page in enumerate(doc):
+    for page_number in range(len(doc)): # type: ignore
+        page = doc[page_number]
         # Extract text
-        text = page.get_text("text")
+        text = page.get_textpage().extractText()
         extracted_text.append(text)
 
         # Extract images
@@ -96,7 +98,7 @@ def load_pdf(state: ResPaperExtractState):
     return {"extracted_text": full_text, "extracted_images": extracted_images}
 
 def generate_summary(state: ResPaperExtractState):
-    extracted_text = state["extracted_text"]
+    extracted_text = state.extracted_text
 
     summary_template_string_2 = """
         You are an expert science communicator who specializes in breaking down complex research papers into engaging, conversational summaries. Your goal is to generate a summary that will be used to generate text for conversational podcast.
@@ -173,19 +175,19 @@ def generate_conversation(state: ResPaperExtractState):
         messages=[system_message_podcast, human_message_podcast],
         partial_variables={"format_instructions": parser.get_format_instructions()}
     )
-    summary_text = state["summary_text"]
+    summary_text = state.summary_text
     prompt = chat_prompt_podcast.invoke({"summary_text": summary_text, "tone": "informative"})
     # llm_out = llm.invoke(prompt)
     # parsed = parser_podcast.invoke(llm_out)
     llm_out = llm.invoke(prompt)
-    cleaned_llm_out = clean_markdown_output(llm_out)
+    cleaned_llm_out = clean_markdown_output(str(llm_out.content))
     parsed = parser.invoke(cleaned_llm_out)
     
     return {"convo":parsed}
 
 
 def get_data(state):
-    extracted_text = state["extracted_text"]
+    extracted_text = state.extracted_text
     system_message = SystemMessagePromptTemplate.from_template(
     """You are an expert in creating PowerPoint presentations. Generate a structured PowerPoint (PPT) presentation 
     that summarizes a research paper based on the provided extracted text. Follow these instructions:
@@ -226,11 +228,13 @@ def get_data(state):
     prompt = chat_prompt.invoke({"extracted_text": extracted_text})
     # Invoke LLM with structured output
     llm_out = llm.invoke(prompt)
-    cleaned_llm_out = clean_markdown_output(llm_out)
+    cleaned_llm_out = clean_markdown_output(str(llm_out.content))
     parsed = parser.invoke(cleaned_llm_out)
     
     return {"ppt_object": parsed}
 
+def check_ppt(state: ResPaperExtractState):
+    return state.want_ppt  # Check if the user wants PPT or not
 builder = StateGraph(ResPaperExtractState)
 
 builder.add_node("pdf-2-text", load_pdf)
@@ -239,9 +243,12 @@ builder.add_node("summary-text", generate_summary)
 builder.add_node("conversation", generate_conversation)
 
 builder.add_edge(START, "pdf-2-text")
-builder.add_edge("pdf-2-text", "ppt-extract")
-builder.add_edge("pdf-2-text", "summary-text")
+builder.add_conditional_edges("pdf-2-text", check_ppt, {True: "ppt-extract", False: "summary-text"})
 builder.add_edge("summary-text", "conversation")
 builder.add_edge("ppt-extract", END)
 builder.add_edge("conversation", END)
 graph = builder.compile()
+
+from IPython.display import display, Image
+
+print(graph.get_graph().draw_ascii())
