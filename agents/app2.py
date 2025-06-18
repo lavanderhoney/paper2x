@@ -1,6 +1,8 @@
 import shutil
 import os
+import traceback
 import uuid
+import traceback
 import aiofiles
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
@@ -42,6 +44,7 @@ async def generate_ppt(file: UploadFile = File(...), want_ppt: bool = True):
         async with aiofiles.open(pdf_path, 'wb') as out_file:
             while chunk := await file.read(1024*1024):  # Read in chunks of 1MB
                 await out_file.write(chunk)
+        print(f"File saved to {pdf_path}")
         # Initialize state
         state: ResPaperExtractState = ResPaperExtractState(pdf_path=pdf_path, want_ppt=want_ppt)
         
@@ -62,47 +65,16 @@ async def generate_ppt(file: UploadFile = File(...), want_ppt: bool = True):
         )
     
     except Exception as e:
+        print("--- ERROR STACK TRACE ---")
+        traceback.print_exc() # This prints the traceback to stderr (your console)
+        print("-------------------------")
         raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
     
     finally:
-        if os.path.exists(pdf_path):
-            os.remove(pdf_path)
+        print(f"Cleaning up temporary files...")
+        # if os.path.exists(pdf_path):
+        #     os.remove(pdf_path)
 
-# @app.get("/ppt/{file_id}", response_model=PPTResponse)
-# def get_ppt(file_id: str):
-#     """Retrieve PPT content for a given file ID."""
-#     # result = processed_results.get(file_id)
-    
-#     if not result:
-#         raise HTTPException(status_code=404, detail="File ID not found")
-
-#     ppt_object: PPTPresentation = result.ppt_object
-#     return ppt_object
-
-
-# @app.get("/summary/{file_id}")
-# def get_summary(file_id: str):
-#     """Retrieve summary for a given file ID."""
-#     result = processed_results.get(file_id)
-    
-#     if not result:
-#         raise HTTPException(status_code=404, detail="File ID not found")
-
-#     summary: str = result.get("summary_text").content
-#     return {"summary" : summary}
-
-
-# @app.get("/convo/{file_id}")
-# def get_convo(file_id: str):
-#     """Retrieve conversation details for a given file ID."""
-#     result = processed_results.get(file_id)
-    
-#     if not result:
-#         raise HTTPException(status_code=404, detail="File ID not found")
-
-#     convo: Conversation = result.get("convo")
-#     return convo
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True, log_level="info")
+# if __name__ == "__main__":
+    # import uvicorn
+    # uvicorn.run(app, host="0.0.0.0", port=8000, reload=True, log_level="info")

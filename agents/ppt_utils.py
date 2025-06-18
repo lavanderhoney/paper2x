@@ -58,7 +58,7 @@ def apply_background(slide, color):
     fill.solid()
     fill.fore_color.rgb = color
 
-def create_ppt_from_dict(ppt_data: dict, image_mapping: dict, theme_name: str="default", output_file: str = "presentation.pptx") ->str:
+def create_ppt_from_dict(ppt_data: dict, image_mapping: Dict[str, str] | None, theme_name: str="default", output_file: str = "presentation.pptx") ->str:
     """
     Create a PowerPoint presentation from structured data.
     Args:
@@ -134,7 +134,7 @@ def create_ppt_from_dict(ppt_data: dict, image_mapping: dict, theme_name: str="d
             title_para.font.color.rgb = theme.theme["title"]
         # Handling Graphics/Graphs Slide
         
-        if is_graphics_slide and "images" in slide_data:
+        if image_mapping and is_graphics_slide and "images" in slide_data:
             image_filenames = slide_data["images"]
             image_paths = [image_mapping.get(fig.replace(".", "").replace(" ", "")) for fig in image_filenames]
             image_paths = [img for img in image_paths if img and os.path.exists(img)]  # Remove missing files

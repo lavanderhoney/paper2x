@@ -1,27 +1,27 @@
-from langchain_google_genai import ChatGoogleGenerativeAI
+# from langchain_google_genai import ChatGoogleGenerativeAI
+import os
+import re
+import pymupdf as fitz
+from langchain_groq import ChatGroq
 from langchain.prompts import ChatPromptTemplate, PromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from typing import List, Dict, Any
-from typing_extensions import TypedDict
-from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
+from langchain_core.output_parsers import JsonOutputParser
 from langgraph.graph import StateGraph, START, END
-import os
 from dotenv import load_dotenv
 from typing import List, Dict, Any, Optional
-import pymupdf as fitz
 from pydantic import BaseModel, Field
 from ppt_utils import create_ppt_from_dict
-import re
+from langchain.globals import set_llm_cache
+from langchain_community.cache import InMemoryCache 
 
 load_dotenv()
 os.environ["LANGMSTIH_TRACING"] = "true"
 os.environ["LANGSMITH_PROJECT"] = f"Deployed MineD 2025"
-llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash",
-    temperature=0,
-    max_tokens=None,
-    timeout=None,
-    max_retries=2,
-    # other params...
+
+set_llm_cache(InMemoryCache()) # Caches all LLM calls globally
+
+llm = ChatGroq(
+    model="meta-llama/llama-4-scout-17b-16e-instruct"
 )
 
 # Define Pydantic Model for PPT slides
@@ -45,7 +45,7 @@ class Conversation(BaseModel):
     clay: List[Dialogue] = Field(..., description="Clay's dialogues")
     order: List[str] = Field(..., description="The order of dialogues denoted by the names of the speaker")
 
-class ResPaperExtractState(BaseModel): #TO-DO: Use Pydantic model
+class ResPaperExtractState(BaseModel):
     pdf_path: Optional[str]  # Path to the PDF file
     want_ppt: bool = True # Flag to be used in conditional edge to decide whether to generate ppt or podcast
     extracted_text: Optional[str] = None # Full extracted text from the PDF
@@ -187,7 +187,7 @@ def generate_conversation(state: ResPaperExtractState):
     return {"convo":parsed}
 
 
-def get_data(state):
+def get_data(state: ResPaperExtractState):
     """
     Generate structured PPT content based on the extracted text from the research paper.
     This function uses a system prompt to instruct the LLM to create a PowerPoint presentation content, stored in slides_content key of the graph state.
@@ -231,18 +231,29 @@ def get_data(state):
         messages=[system_message, human_message],
         partial_variables={"format_instructions": parser.get_format_instructions()}
     )
+    
     prompt = chat_prompt.invoke({"extracted_text": extracted_text})
     # Invoke LLM with structured output
     llm_out = llm.invoke(prompt)
     cleaned_llm_out = clean_markdown_output(str(llm_out.content))
     parsed = parser.invoke(cleaned_llm_out)
 
-    ppt_file_path = create_ppt_from_dict(parsed.dict(), state["extracted_images"], "modern", "new_one.pptx")
+    if isinstance(parsed, PPTPresentation): # Check if it's the Pydantic object
+        # If PPTPresentation is Pydantic v2
+        data_for_ppt_creation = parsed.model_dump()
+        # If PPTPresentation is Pydantic v1
+        # data_for_ppt_creation = parsed.dict()
+    elif isinstance(parsed, dict): # If it's already a dictionary (fallback)
+        data_for_ppt_creation = parsed
+    else:
+        raise ValueError(f"Unexpected type from parser.invoke: {type(parsed)}. Expected PPTPresentation or dict.")
+
+    ppt_file_path = create_ppt_from_dict(data_for_ppt_creation, state.extracted_images, "modern", "static/new_one.pptx")
     return {"slides_content": parsed,
-            "ppt_file_path": ppt_file_path}  # Return the structured PPT content and the PPT file path
+            "ppt_file_path": ppt_file_path}  
 
 def check_ppt(state: ResPaperExtractState):
-    return state.want_ppt  # Check if the user wants PPT or not
+    return state.want_ppt 
 builder = StateGraph(ResPaperExtractState)
 
 builder.add_node("pdf-2-text", load_pdf)
@@ -259,4 +270,5 @@ graph = builder.compile()
 
 from IPython.display import display, Image
 
-print(graph.get_graph().draw_ascii())
+if __name__ == "__main__":
+    print(graph.get_graph().draw_ascii())
