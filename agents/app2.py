@@ -1,18 +1,23 @@
 import shutil
 import os
 import uuid
+import aiofiles
 from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.responses import FileResponse
 from langgraph.graph import StateGraph
 from typing import Dict, Any
 from pydantic import BaseModel
 from agent import graph, ResPaperExtractState, PPTPresentation, Conversation
 
+"""
+FastAPI application for processing PDF files and generating PowerPoint presentations.
+This is early stage, so just one endpoint, which sends both ppt and podcast, as I need to make that display in the frontend as a first step. 
+Then it will be split into two endpoints, one for ppt and one for podcast, and with db storage to avoid re-executing the graph again for the same file.
+    (but, for later, might check that, becuz if user wants to re-create the ppt, maybe with diff temp or something)
+"""
 app = FastAPI()
 UPLOAD_DIR = "uploaded_pdfs"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-# In-memory storage for processed results
-processed_results: Dict[str, Dict[str, Any]] = {}
 
 class PPTResponse(BaseModel):
     title: str
@@ -26,28 +31,35 @@ def read_root():
 
 #from the frontend, get want_ppt along with the file
 @app.post("/generate-ppt")
-def generate_ppt(file: UploadFile = File(...), want_ppt: bool = True):
+async def generate_ppt(file: UploadFile = File(...), want_ppt: bool = True):
     """Endpoint to process a PDF file and generate structured PPT content."""
-    # file_id = str(uuid.uuid4())  # Generate a unique identifier
+
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided in uploaded file.")
     pdf_path = os.path.join(UPLOAD_DIR, file.filename)
     
     try:
-        with open(pdf_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        
+        async with aiofiles.open(pdf_path, 'wb') as out_file:
+            while chunk := await file.read(1024*1024):  # Read in chunks of 1MB
+                await out_file.write(chunk)
         # Initialize state
         state: ResPaperExtractState = ResPaperExtractState(pdf_path=pdf_path, want_ppt=want_ppt)
         
         # Run the graph workflow
         result: Dict[str, Any] = graph.invoke(state)
         print("Graph invocation result:", result)
-       
-        # Store results using the unique ID
-        # processed_results[file_id] = result
+        if not result:
+            raise HTTPException(status_code=500, detail="Graph invocation failed or returned no result.")
         
-        return result
+        ppt_object_path: str = result.get("ppt_file_path") # type: ignore
+        if not ppt_object_path:
+           raise HTTPException(status_code=500, detail="PPT generation failed.")
+
+        return FileResponse(
+            path=ppt_object_path,
+            media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            filename=os.path.basename(ppt_object_path)
+        )
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
@@ -56,41 +68,41 @@ def generate_ppt(file: UploadFile = File(...), want_ppt: bool = True):
         if os.path.exists(pdf_path):
             os.remove(pdf_path)
 
-@app.get("/ppt/{file_id}", response_model=PPTResponse)
-def get_ppt(file_id: str):
-    """Retrieve PPT content for a given file ID."""
-    result = processed_results.get(file_id)
+# @app.get("/ppt/{file_id}", response_model=PPTResponse)
+# def get_ppt(file_id: str):
+#     """Retrieve PPT content for a given file ID."""
+#     # result = processed_results.get(file_id)
     
-    if not result:
-        raise HTTPException(status_code=404, detail="File ID not found")
+#     if not result:
+#         raise HTTPException(status_code=404, detail="File ID not found")
 
-    ppt_object: PPTPresentation = result.ppt_object
-    return ppt_object
+#     ppt_object: PPTPresentation = result.ppt_object
+#     return ppt_object
 
 
-@app.get("/summary/{file_id}")
-def get_summary(file_id: str):
-    """Retrieve summary for a given file ID."""
-    result = processed_results.get(file_id)
+# @app.get("/summary/{file_id}")
+# def get_summary(file_id: str):
+#     """Retrieve summary for a given file ID."""
+#     result = processed_results.get(file_id)
     
-    if not result:
-        raise HTTPException(status_code=404, detail="File ID not found")
+#     if not result:
+#         raise HTTPException(status_code=404, detail="File ID not found")
 
-    summary: str = result.get("summary_text").content
-    return {"summary" : summary}
+#     summary: str = result.get("summary_text").content
+#     return {"summary" : summary}
 
 
-@app.get("/convo/{file_id}")
-def get_convo(file_id: str):
-    """Retrieve conversation details for a given file ID."""
-    result = processed_results.get(file_id)
+# @app.get("/convo/{file_id}")
+# def get_convo(file_id: str):
+#     """Retrieve conversation details for a given file ID."""
+#     result = processed_results.get(file_id)
     
-    if not result:
-        raise HTTPException(status_code=404, detail="File ID not found")
+#     if not result:
+#         raise HTTPException(status_code=404, detail="File ID not found")
 
-    convo: Conversation = result.get("convo")
-    return convo
+#     convo: Conversation = result.get("convo")
+#     return convo
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True, log_level="info")

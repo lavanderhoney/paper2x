@@ -6,11 +6,12 @@ from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 from langgraph.graph import StateGraph, START, END
 import os
 from dotenv import load_dotenv
-# from langchain.document_loaders import PyMuPDFLoader
 from typing import List, Dict, Any, Optional
 import pymupdf as fitz
 from pydantic import BaseModel, Field
+from ppt_utils import create_ppt_from_dict
 import re
+
 load_dotenv()
 os.environ["LANGMSTIH_TRACING"] = "true"
 os.environ["LANGSMITH_PROJECT"] = f"Deployed MineD 2025"
@@ -42,7 +43,7 @@ class Dialogue(BaseModel):
 class Conversation(BaseModel):
     katherine: List[Dialogue] = Field(..., description="Katherine's dialogues")
     clay: List[Dialogue] = Field(..., description="Clay's dialogues")
-    order: List[str] = Field(..., description="The order of dialogues denoted by the names of the speaker")
+    order: List[str] = Field(..., description="The order of dialogues denoted by the names of the speaker")
 
 class ResPaperExtractState(BaseModel): #TO-DO: Use Pydantic model
     pdf_path: Optional[str]  # Path to the PDF file
@@ -50,7 +51,7 @@ class ResPaperExtractState(BaseModel): #TO-DO: Use Pydantic model
     extracted_text: Optional[str] = None # Full extracted text from the PDF
     extracted_images: Optional[Dict[str,str]] = None# Paths to extracted images
     slides_content: Optional[List[Dict[str, str]]] = None  # Prepared content for PowerPoint slides
-    ppt_object: Optional[PPTPresentation] = None  # PPTPresentation object containing structured PPT data
+    ppt_file_path: Optional[str] = None  # file path to the saved .pptx file created from the python-pptx library
     summary_text: Optional[str] = None
     convo: Optional[Conversation] = None  # Conversation object containing structured dialogue data
 
@@ -187,6 +188,11 @@ def generate_conversation(state: ResPaperExtractState):
 
 
 def get_data(state):
+    """
+    Generate structured PPT content based on the extracted text from the research paper.
+    This function uses a system prompt to instruct the LLM to create a PowerPoint presentation content, stored in slides_content key of the graph state.
+    This node then calls generate_ppt function to generate the actual PPT file, and puts the content in the state.ppt_file_path key.
+    """
     extracted_text = state.extracted_text
     system_message = SystemMessagePromptTemplate.from_template(
     """You are an expert in creating PowerPoint presentations. Generate a structured PowerPoint (PPT) presentation 
@@ -230,8 +236,10 @@ def get_data(state):
     llm_out = llm.invoke(prompt)
     cleaned_llm_out = clean_markdown_output(str(llm_out.content))
     parsed = parser.invoke(cleaned_llm_out)
-    
-    return {"ppt_object": parsed}
+
+    ppt_file_path = create_ppt_from_dict(parsed.dict(), state["extracted_images"], "modern", "new_one.pptx")
+    return {"slides_content": parsed,
+            "ppt_file_path": ppt_file_path}  # Return the structured PPT content and the PPT file path
 
 def check_ppt(state: ResPaperExtractState):
     return state.want_ppt  # Check if the user wants PPT or not
