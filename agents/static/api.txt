@@ -1,4 +1,3 @@
-"AIzaSyCUq5lRGnna-2Z_KtAVKC5kQXWiPLJjow4" - google_api
 
 - Graphics: Include any images of graphs or charts or other images, relevant to the results,or images depicting a performance metric,
       that are mentioned in the extracted text. You can find such images by looking for any captions that mention figures or tables. 
