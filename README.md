@@ -152,10 +152,6 @@ Contributions are welcome! If you’d like to help improve Paper-2-X:
 
 Please follow the existing code style and include tests for new functionality.
 
-## License
-
-This project is licensed under the MIT License.
-
 ## Contact
 
 For questions, suggestions, or contributions, please open an issue on GitHub or contact the repository owner at your preferred communication channel.
