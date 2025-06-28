@@ -75,6 +75,8 @@ async def generate_ppt(file: UploadFile = File(...), want_ppt: bool = True):
         # if os.path.exists(pdf_path):
         #     os.remove(pdf_path)
 
+@app.post("/generate-podcast")
+async def generate-podcast()
 # if __name__ == "__main__":
     # import uvicorn
     # uvicorn.run(app, host="0.0.0.0", port=8000, reload=True, log_level="info")

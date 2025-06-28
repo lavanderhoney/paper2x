@@ -132,8 +132,8 @@ def generate_summary(state: ResPaperExtractState):
 
 def generate_conversation(state: ResPaperExtractState):
     system_message_podcast = SystemMessagePromptTemplate.from_template(
-    """You are an expert in creating/writing scripts for podcasts. 
-    Consider the given scenario: Two people one girl and one boy who are in final year of their B.Tech, are discussing the given research paper to create an podcast of this research paper
+    """You are an expert in creating/writing scripts for podcasts from summary of research paper. 
+    Consider the given scenario: Two people one girl and one boy are discussing the given research paper to create an podcast of this research paper
     
     Boy's Name: Clay
     Girl's Name: Katherine
@@ -184,6 +184,12 @@ def generate_conversation(state: ResPaperExtractState):
     cleaned_llm_out = clean_markdown_output(str(llm_out.content))
     parsed = parser.invoke(cleaned_llm_out)
     
+    if isinstance(parsed, Conversation): # Check if it's the Pydantic object
+        data_for_podacast = parsed.model_dump()
+    elif isinstance(parsed, dict): # If it's already a dictionary (fallback)
+        data_for_podacast = parsed
+    else:
+        raise ValueError(f"Unexpected type from parser.invoke: {type(parsed)}. Expected Conversation object or dict.")
     return {"convo":parsed}
 
 

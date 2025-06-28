@@ -69,47 +69,58 @@ def main():
             st.write("Sending request...")
             with st.spinner("Processing the PDF..."):
                 time.sleep(2)
-                try:
-                    response = requests.post(
-                        "http://localhost:8000/generate-ppt",
-                        data={"want_ppt": str(want_ppt)},
-                        files={"file":(uploaded_file.name, uploaded_file.getvalue(), "application/pdf")}
-                    )
-                    if response.status_code == 200:
-                        # --- Handle the file download ---
-                        # The response is now a file, not JSON
-                        if "application/vnd.openxmlformats-officedocument.presentationml.presentation" in response.headers.get("Content-Type", ""):
-                            # Extract filename from Content-Disposition header, or use a default
-                            content_disposition = response.headers.get("Content-Disposition")
-                            if content_disposition:
-                                # Example: attachment; filename="generated_presentation.pptx"
-                                filename_match = re.search(r'filename="([^"]+)"', content_disposition)
-                                if filename_match:
-                                    download_filename = filename_match.group(1)
+                if want_ppt:
+                    try:
+                        response = requests.post(
+                            "http://localhost:8000/generate-ppt",
+                            data={"want_ppt": str(want_ppt)},
+                            files={"file":(uploaded_file.name, uploaded_file.getvalue(), "application/pdf")}
+                        )
+                        if response.status_code == 200:
+                            # --- Handle the file download ---
+                            # The response is now a file, not JSON
+                            if "application/vnd.openxmlformats-officedocument.presentationml.presentation" in response.headers.get("Content-Type", ""):
+                                # Extract filename from Content-Disposition header, or use a default
+                                content_disposition = response.headers.get("Content-Disposition")
+                                if content_disposition:
+                                    # Example: attachment; filename="generated_presentation.pptx"
+                                    filename_match = re.search(r'filename="([^"]+)"', content_disposition)
+                                    if filename_match:
+                                        download_filename = filename_match.group(1)
+                                    else:
+                                        download_filename = "generated_presentation.pptx" # Default if not found
                                 else:
-                                    download_filename = "generated_presentation.pptx" # Default if not found
-                            else:
-                                download_filename = "generated_presentation.pptx" # Default if no header
+                                    download_filename = "generated_presentation.pptx" # Default if no header
 
-                            st.download_button(
-                                label="Download Generated PPT",
-                                data=response.content, # The actual file bytes
-                                file_name=download_filename,
-                                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                            )
+                                st.download_button(
+                                    label="Download Generated PPT",
+                                    data=response.content, # The actual file bytes
+                                    file_name=download_filename,
+                                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                                )
+                            else:
+                                # Fallback if the response is not a PPT file (e.g., if you return JSON for podcast audio)
+                                try:
+                                    st.write(response.json())
+                                except ValueError: # Not JSON
+                                    st.write(f"Unexpected response content: {response.text}")
                         else:
-                            # Fallback if the response is not a PPT file (e.g., if you return JSON for podcast audio)
-                            try:
-                                st.write(response.json())
-                            except ValueError: # Not JSON
-                                st.write(f"Unexpected response content: {response.text}")
-                    else:
-                        print("--- ERROR STACK TRACE ---")
-                        traceback.print_exc() # This prints the traceback to stderr (your console)
-                        print("-------------------------")
-                        st.error(f"Failed to send PDF: {response.status_code} - {response.text}")
-                except Exception as e:
-                   st.error(f"An error occurred: {e}")
+                            print("--- ERROR STACK TRACE ---")
+                            traceback.print_exc() # This prints the traceback to stderr (your console)
+                            print("-------------------------")
+                            st.error(f"Failed to send PDF: {response.status_code} - {response.text}")
+                    except Exception as e:
+                       st.error(f"An error occurred: {e}")
+                else:
+                    try:
+                        response = requests.post(
+                            "http://localhost:8000/get-podcast",
+                            
+                        )
+
+                    except Exception as e:
+                        st.error(f"An error occurred while processing the podcast audio: {e}")
+
 
 if __name__ == "__main__":
     main()

@@ -15,6 +15,10 @@
 1.4. -> Setup authentication
     |-> Google or email, whichever is easier, login stuff with firebase backend
 
+1.5 -> Guardrails
+    |-> handle the case if pdf is not res paper, and so that I dont get 500 error due to nonetype
+        like add a guardrail node where, a cheaper llm perhaps, check if uploaded pdf is res paper or not
+
 2. Improvement
 -> Account related Improvement
     |-> Store the graph state for a particular pdf
