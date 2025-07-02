@@ -73,8 +73,10 @@ def main():
                     try:
                         response = requests.post(
                             "http://localhost:8000/generate-ppt",
-                            data={"want_ppt": str(want_ppt)},
-                            files={"file":(uploaded_file.name, uploaded_file.getvalue(), "application/pdf")}
+                            files={
+                                "file": (uploaded_file.name, uploaded_file.getvalue(), "application/pdf"),
+                                "want_ppt": (None, str(want_ppt)),  # Send as form data
+                            },
                         )
                         if response.status_code == 200:
                             # --- Handle the file download ---
@@ -112,11 +114,31 @@ def main():
                     except Exception as e:
                        st.error(f"An error occurred: {e}")
                 else:
+                    print(f"want_ppt: {want_ppt} {type(want_ppt)}")
                     try:
                         response = requests.post(
-                            "http://localhost:8000/get-podcast",
-                            
+                            "http://localhost:8000/generate",
+                            files={
+                                "file":(uploaded_file.name, uploaded_file.getvalue(), "application/pdf"),
+                                "want_ppt": (None, str(want_ppt)),  # Send as form data
+                            },
                         )
+                        if response.status_code == 200:
+                            # --- Handle the file download ---
+                            # The response is now a file, not JSON
+                            if "audio/mpeg" in response.headers.get("Content-Type", ""):
+                                download_filename = "generated_podcast.wav"
+                                st.download_button(
+                                    label="Download Podcast Audio",
+                                    data=response.content,  # The actual file bytes
+                                    file_name=download_filename,
+                                    mime="audio/mpeg"
+                                )
+                            else:
+                                try:
+                                    st.write(response.json())
+                                except ValueError: # Not JSON
+                                    st.write(f"Unexpected response content: {response.text}")
 
                     except Exception as e:
                         st.error(f"An error occurred while processing the podcast audio: {e}")

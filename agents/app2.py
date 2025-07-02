@@ -4,7 +4,7 @@ import traceback
 import uuid
 import traceback
 import aiofiles
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, Form, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 from langgraph.graph import StateGraph
 from typing import Dict, Any
@@ -32,10 +32,12 @@ def read_root():
     return {"message": "Hello, World!"}
 
 #from the frontend, get want_ppt along with the file
-@app.post("/generate-ppt")
-async def generate_ppt(file: UploadFile = File(...), want_ppt: bool = True):
-    """Endpoint to process a PDF file and generate structured PPT content."""
-
+@app.post("/generate")
+async def generate( want_ppt: bool = Form(...), file: UploadFile = File(...)):
+    """Endpoint to process a PDF file and generate either a PowerPoint presentation or a podcast.
+    Returns the content as a FileResponse if successful, or raises an HTTPException on error.
+    """
+    print(f"Received file: {file.filename}, want_ppt: {want_ppt} {type(want_ppt)}")
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided in uploaded file.")
     pdf_path = os.path.join(UPLOAD_DIR, file.filename)
@@ -49,21 +51,34 @@ async def generate_ppt(file: UploadFile = File(...), want_ppt: bool = True):
         state: ResPaperExtractState = ResPaperExtractState(pdf_path=pdf_path, want_ppt=want_ppt)
         
         # Run the graph workflow
-        result: Dict[str, Any] = graph.invoke(state)
+        # result: Dict[str, Any] = graph.invoke(state)
+        result = dict() # debug
         print("Graph invocation result:", result)
-        if not result:
-            raise HTTPException(status_code=500, detail="Graph invocation failed or returned no result.")
+        # if not result:
+        #     raise HTTPException(status_code=500, detail="Graph invocation failed or returned no result.")
         
-        ppt_object_path: str = result.get("ppt_file_path") # type: ignore
-        if not ppt_object_path:
-           raise HTTPException(status_code=500, detail="PPT generation failed.")
+        if want_ppt:
+            ppt_object_path: str = result.get("ppt_file_path") # type: ignore
+            if not ppt_object_path:
+                raise HTTPException(status_code=500, detail="PPT generation failed.")
 
-        return FileResponse(
-            path=ppt_object_path,
-            media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            filename=os.path.basename(ppt_object_path)
-        )
-    
+            return FileResponse(
+                path=ppt_object_path,
+                media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                filename=os.path.basename(ppt_object_path)
+            )
+        else:
+            # podcast_path: str = result.get("podcast_file_path") # type: ignore
+            podcast_path = "podcast_1751204720_024152.wav"
+            if not podcast_path:
+                raise HTTPException(status_code=500, detail="Podcast generation failed.")
+
+            return FileResponse(
+                path=podcast_path,
+                media_type="audio/mpeg",
+                filename=os.path.basename(podcast_path)
+            )
+
     except Exception as e:
         print("--- ERROR STACK TRACE ---")
         traceback.print_exc() # This prints the traceback to stderr (your console)
@@ -75,8 +90,6 @@ async def generate_ppt(file: UploadFile = File(...), want_ppt: bool = True):
         # if os.path.exists(pdf_path):
         #     os.remove(pdf_path)
 
-@app.post("/generate-podcast")
-async def generate-podcast()
 # if __name__ == "__main__":
     # import uvicorn
     # uvicorn.run(app, host="0.0.0.0", port=8000, reload=True, log_level="info")

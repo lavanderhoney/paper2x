@@ -10,9 +10,10 @@ from langgraph.graph import StateGraph, START, END
 from dotenv import load_dotenv
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
-from ppt_utils import create_ppt_from_dict
 from langchain.globals import set_llm_cache
 from langchain_community.cache import InMemoryCache 
+from ppt_utils import create_ppt_from_dict #change the func name to generate_ppt
+from podcast_utils import generate_podcast
 
 load_dotenv()
 os.environ["LANGMSTIH_TRACING"] = "true"
@@ -21,7 +22,8 @@ os.environ["LANGSMITH_PROJECT"] = f"Deployed MineD 2025"
 set_llm_cache(InMemoryCache()) # Caches all LLM calls globally
 
 llm = ChatGroq(
-    model="meta-llama/llama-4-scout-17b-16e-instruct"
+    model="meta-llama/llama-4-scout-17b-16e-instruct",
+   # temperature=0.1, # TO-DO: check with inc temperature effect on ppt and audio dialogues
 )
 
 # Define Pydantic Model for PPT slides
@@ -54,6 +56,7 @@ class ResPaperExtractState(BaseModel):
     ppt_file_path: Optional[str] = None  # file path to the saved .pptx file created from the python-pptx library
     summary_text: Optional[str] = None
     convo: Optional[Conversation] = None  # Conversation object containing structured dialogue data
+    podcast_file_path: Optional[str] = None  # Path to the generated podcast audio file
 
 def clean_markdown_output(llm_out: str) -> str:
     # Remove leading and trailing triple backticks if present
@@ -190,8 +193,10 @@ def generate_conversation(state: ResPaperExtractState):
         data_for_podacast = parsed
     else:
         raise ValueError(f"Unexpected type from parser.invoke: {type(parsed)}. Expected Conversation object or dict.")
-    return {"convo":parsed}
-
+    # Generate podcast from the structured conversation data
+    podcast_file = generate_podcast(data_for_podacast)
+    return {"convo":parsed, 
+            "podcast_file": podcast_file}
 
 def get_data(state: ResPaperExtractState):
     """
