@@ -3,13 +3,74 @@ import streamlit as st
 import time
 import requests
 import re
-from io import BytesIO
 import traceback
+from io import BytesIO
+from appwrite.client import Client
+from appwrite.services.account import Account
+
+client = Client()
+client.set_endpoint(st.secrets["auth"]["endpoint"])  # Appwrite endpoint
+client.set_project(st.secrets["auth"]["PROJECT_ID"])  # Appwrite project ID
+client.set_key(st.secrets["auth"]["API_KEY"])  # Appwrite API key
+
+account = Account(client) # to allow new users to register, create session, etc.
+
+#TO-DO: simplify this code with callbacks
+def login_ui():
+    st.title("Login")
+    email = st.text_input("Email")
+    password = st.text_input("Password", type="password")
+    if st.button("Login"):
+        try:
+            session = account.create_email_password_session(email=email, password=password)
+            st.session_state["session"] = session["$id"]
+            print("st.user after login: ")
+            st.write(st.user)
+            st.session_state['logged_in'] = True
+            st.success("Login successful!")
+            st.rerun()  # Rerun to update the UI after login
+        except Exception as e:
+            st.error(f"Login failed: {e}")
+
+def register_ui():
+    st.title("Register")
+    user_name = st.text_input("Username") 
+    email = st.text_input("Email")
+    password = st.text_input("Password", type="password")
+    
+    if st.button("Register"):
+        try:
+            user = account.create(
+                user_id="unique()",
+                email=email,
+                password=password,
+                name=user_name,
+            )
+            st.success("Registration successful! Please proceed to login.")
+        except Exception as e:
+            st.error(f"Registration failed: {e}")
 
 def main():
     """
     Main function to create the Streamlit file upload UI.
     """
+    print(st.user.is_logged_in)
+    if 'logged_in' not in st.session_state:
+        st.session_state['logged_in'] = False
+    
+    if not st.session_state['logged_in']:
+        st.title("Welcome to paper-2x !")
+        option = st.radio("Choose an option", ["Login", "Register"])
+        if option == "Login":
+            login_ui()
+        else:
+            register_ui()
+        return  # Don't show rest of the app unless logged in
+    
+    if st.button("Logout"):
+        st.session_state['logged_in'] = False
+        st.session_state['session'] = None
+        st.rerun()
     st.title("PDF File Upload and Preview")
 
     # File uploader widget, limit to a single PDF
@@ -125,6 +186,7 @@ def main():
                         )
                         if response.status_code == 200:
                             # --- Handle the file download ---
+                            st.audio(response.content, format="audio/mpeg")
                             # The response is now a file, not JSON
                             if "audio/mpeg" in response.headers.get("Content-Type", ""):
                                 download_filename = "generated_podcast.wav"
@@ -132,7 +194,7 @@ def main():
                                     label="Download Podcast Audio",
                                     data=response.content,  # The actual file bytes
                                     file_name=download_filename,
-                                    mime="audio/mpeg"
+                                    mime="audio/wav"
                                 )
                             else:
                                 try:

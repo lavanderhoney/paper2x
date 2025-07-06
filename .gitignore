@@ -6,6 +6,10 @@ __pycache__/
 
 *.png
 *.jpeg
+*.wav
+
+*.streamlit
+*.streamlit/*
 # C extensions
 *.so
 
