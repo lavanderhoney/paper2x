@@ -8,6 +8,7 @@ from io import BytesIO
 from appwrite.client import Client
 from appwrite.services.account import Account
 
+backend_url = st.secrets["backend"]["url"]  # URL of the backend service (local or deployed)
 client = Client()
 client.set_endpoint(st.secrets["auth"]["endpoint"])  # Appwrite endpoint
 client.set_project(st.secrets["auth"]["PROJECT_ID"])  # Appwrite project ID
@@ -53,8 +54,8 @@ def register_ui():
 def main():
     """
     Main function to create the Streamlit file upload UI.
-    """
-    print(st.user.is_logged_in)
+    """ 
+    # print(st.user.is_logged_in)
     if 'logged_in' not in st.session_state:
         st.session_state['logged_in'] = False
     
@@ -133,7 +134,7 @@ def main():
                 if want_ppt:
                     try:
                         response = requests.post(
-                            "http://localhost:8000/generate-ppt",
+                            f"{backend_url}/generate-ppt",
                             files={
                                 "file": (uploaded_file.name, uploaded_file.getvalue(), "application/pdf"),
                                 "want_ppt": (None, str(want_ppt)),  # Send as form data
@@ -178,7 +179,7 @@ def main():
                     print(f"want_ppt: {want_ppt} {type(want_ppt)}")
                     try:
                         response = requests.post(
-                            "http://localhost:8000/generate",
+                            f"{backend_url}/generate",
                             files={
                                 "file":(uploaded_file.name, uploaded_file.getvalue(), "application/pdf"),
                                 "want_ppt": (None, str(want_ppt)),  # Send as form data
