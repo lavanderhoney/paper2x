@@ -10,7 +10,6 @@ from langgraph.graph import StateGraph
 from typing import Dict, Any
 from pydantic import BaseModel
 from agent import graph, ResPaperExtractState, PPTPresentation, Conversation
-
 """
 FastAPI application for processing PDF files and generating PowerPoint presentations.
 This is early stage, so just one endpoint, which sends both ppt and podcast, as I need to make that display in the frontend as a first step. 
@@ -75,7 +74,7 @@ async def generate( want_ppt: bool = Form(...), file: UploadFile = File(...)):
 
             return FileResponse(
                 path=podcast_path,
-                media_type="audio/mpeg",
+                media_type="audio/wav",
                 filename=os.path.basename(podcast_path)
             )
 
