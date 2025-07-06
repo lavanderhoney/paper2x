@@ -12,9 +12,8 @@ pydantic
 pydub
 pymupdf
 python-dotenv
-python_pptx
+python-pptx
 python-multipart
 Requests
-pyaudioop
 uuid
 uvicorn
