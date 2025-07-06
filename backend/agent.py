@@ -279,7 +279,5 @@ builder.add_edge("ppt-extract", END)
 builder.add_edge("conversation", END)
 graph = builder.compile()
 
-from IPython.display import display, Image
-
 if __name__ == "__main__":
     print(graph.get_graph().draw_ascii())
