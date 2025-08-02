@@ -50,14 +50,15 @@ async def generate( want_ppt: bool = Form(...), file: UploadFile = File(...)):
         state: ResPaperExtractState = ResPaperExtractState(pdf_path=pdf_path, want_ppt=want_ppt)
         
         # Run the graph workflow
-        # result: Dict[str, Any] = graph.invoke(state)
-        result = dict() # debug
+        result: Dict[str, Any] = graph.invoke(state)
+        # result = dict() # debug
         print("Graph invocation result:", result)
         # if not result:
         #     raise HTTPException(status_code=500, detail="Graph invocation failed or returned no result.")
         
         if want_ppt:
             ppt_object_path: str = result.get("ppt_file_path") # type: ignore
+            print(f"ppt_object_path: {ppt_object_path}")
             if not ppt_object_path:
                 raise HTTPException(status_code=500, detail="PPT generation failed.")
 
@@ -67,14 +68,17 @@ async def generate( want_ppt: bool = Form(...), file: UploadFile = File(...)):
                 filename=os.path.basename(ppt_object_path)
             )
         else:
-            # podcast_path: str = result.get("podcast_file_path") # type: ignore
-            podcast_path = "podcast_1751204720_024152.wav"
-            if not podcast_path:
-                raise HTTPException(status_code=500, detail="Podcast generation failed.")
+            # careful with graph's state keys
+            podcast_path: str = result.get("podcast_file_path") # type: ignore
+            print(f"podcast_path: {podcast_path}")
+            print(result.keys())
+            # podcast_path = "podcast_1751204720_024152.wav" # for testing
+            # if not podcast_path:
+            #     raise HTTPException(status_code=500, detail="Podcast generation failed.")
 
             return FileResponse(
                 path=podcast_path,
-                media_type="audio/wav",
+                media_type="audio/mpeg", # using MP3
                 filename=os.path.basename(podcast_path)
             )
 

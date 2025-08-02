@@ -196,7 +196,7 @@ def generate_conversation(state: ResPaperExtractState):
     # Generate podcast from the structured conversation data
     podcast_file = generate_podcast(data_for_podacast)
     return {"convo":parsed, 
-            "podcast_file": podcast_file}
+            "podcast_file_path": podcast_file} #the keys here should match the keys in the graph state, else the graph state will not be updated correctly
 
 def get_data(state: ResPaperExtractState):
     """

@@ -105,8 +105,6 @@ def main():
             pdf_base64 = base64.b64encode(file_bytes).decode('utf-8')
             pdf_display = f'<iframe src="data:application/pdf;base64,{pdf_base64}" width="100%" height="500" type="application/pdf"></iframe>'
             st.markdown(pdf_display, unsafe_allow_html=True)
-
-
         except Exception as e:
             st.error(f"Error displaying PDF: {e}")
             
@@ -134,7 +132,7 @@ def main():
                 if want_ppt:
                     try:
                         response = requests.post(
-                            f"{backend_url}/generate-ppt",
+                            f"{backend_url}/generate",
                             files={
                                 "file": (uploaded_file.name, uploaded_file.getvalue(), "application/pdf"),
                                 "want_ppt": (None, str(want_ppt)),  # Send as form data
@@ -187,15 +185,15 @@ def main():
                         )
                         if response.status_code == 200:
                             # --- Handle the file download ---
-                            st.audio(response.content, format="audio/mpeg")
+                            st.audio(response.content, format="audio/mpeg") # MIME type for MP3
                             # The response is now a file, not JSON
                             if "audio/mpeg" in response.headers.get("Content-Type", ""):
-                                download_filename = "generated_podcast.wav"
+                                download_filename = "generated_podcast.mp3"
                                 st.download_button(
                                     label="Download Podcast Audio",
                                     data=response.content,  # The actual file bytes
                                     file_name=download_filename,
-                                    mime="audio/wav"
+                                    mime="audio/mpeg"
                                 )
                             else:
                                 try:

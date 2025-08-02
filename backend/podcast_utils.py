@@ -7,7 +7,6 @@ import requests
 from io import BytesIO
 from datetime import datetime
 from typing import Optional, Union, Dict, List
-from groq import Groq
 from dotenv import load_dotenv
 from murf import Murf
 from pydub import AudioSegment
@@ -15,25 +14,24 @@ load_dotenv()
 client = Murf(api_key=os.getenv("MURF_API_KEY"))
 # dialogues = []
 
-def call_tts_model(dialogue: str, voice: str, file_name: str) -> None:
+def call_tts_model(dialogue: str, voice: str) -> AudioSegment:
     try:
         res = client.text_to_speech.generate(
             text=dialogue,
             voice_id=voice,
+            format="mp3",
         )
         audio_url = res.audio_file
         response = requests.get(audio_url)
-        if response.status_code == 200:
-            with open(file_name, 'wb') as f:
-                f.write(response.content)
-        else:
-            print(f"Failed to download audio: {response.status_code}")
-        print(f"Audio saved to {file_name}")
+        response.raise_for_status()  
+        
+        #rather than saving individual clips, keep them in memory as AudioSegment objects
+        audio = AudioSegment.from_file(BytesIO(response.content), format="mp3")
+        return audio
     except Exception as e:
         print(f"Error generating audio for '{dialogue[:30]}...': {e}")
-    return
-
-def generate_clips(data: dict, KATHERINE_VOICE: str, CLAY_VOICE: str) -> List[str]:
+        raise e
+def generate_clips(data: dict, KATHERINE_VOICE: str, CLAY_VOICE: str) -> List[AudioSegment]:
     """
     Generate audio clips for the given dialogues using specified voices.
     Args:
@@ -45,32 +43,39 @@ def generate_clips(data: dict, KATHERINE_VOICE: str, CLAY_VOICE: str) -> List[st
     """
     idx_k, idx_c =0,0 #katherine and clay's dialogues indices
     clips_sequences = []
+    
+    # Ensure the order is present in the data
+    if "order" not in data:
+        raise ValueError("Data must contain 'order' key to determine dialogue sequence.")
     for speaker in data["order"]:
         try:
-            if speaker == "Katherine":
+            if speaker.lower() == "katherine":
                 dialogue = data["katherine"][idx_k]["text"]
-                file_name = f"audio/audio_katherine_{idx_k}.wav"
-                call_tts_model(dialogue=dialogue, voice=KATHERINE_VOICE, file_name=file_name)
+                clips_sequences.append(call_tts_model(dialogue=dialogue, voice=KATHERINE_VOICE))
                 idx_k += 1
-            elif speaker == "Clay":
+                print(f"Generated audio for Katherine: {dialogue[:30]}...")  # Debugging output
+            elif speaker.lower() == "clay":
                 dialogue = data["clay"][idx_c]["text"]
-                file_name = f"audio/audio_clay_{idx_c}.wav"
-                call_tts_model(dialogue=dialogue, voice=CLAY_VOICE, file_name=file_name)
+                clips_sequences.append(call_tts_model(dialogue=dialogue, voice=CLAY_VOICE))
                 idx_c += 1
-            clips_sequences.append(file_name)
+                print(f"Generated audio for Clay: {dialogue[:30]}...")  # Debugging output
         except Exception as e:
             print(f"Error creating audio for speaker '{speaker}': {e}")
-            break
+            raise e
     return clips_sequences
-   
-def combine_audio_files(audio_files, output_file:str = "podcast.wav"):
+
+# also changing this to use AudioSegment instead of individual clips' file paths
+def combine_audio_files(audio_files: List[AudioSegment], output_file:str = "podcast.mp3") -> None:
     final_clip = AudioSegment.empty()
-    for clip_path in audio_files:
-        audio = AudioSegment.from_wav(clip_path)
-        final_clip += audio
-        final_clip += AudioSegment.silent(duration=1000)
-    final_clip.export(output_file, format="wav")
-    print(f"Combined audio saved to {output_file}")
+    try:
+        for audio in audio_files:
+            final_clip += audio
+            final_clip += AudioSegment.silent(duration=1000)
+        final_clip.export(output_file, format="mp3") # Save as MP3, WAV too large
+        print(f"Combined audio saved to {output_file}")
+    except Exception as e:
+        print(f"Error combining audio files: {e}")
+        raise e
 
 def generate_podcast(data: dict, KATHERINE_VOICE: str = "en-US-ariana", CLAY_VOICE: str = "en-US-miles") -> str:
     """
@@ -83,19 +88,21 @@ def generate_podcast(data: dict, KATHERINE_VOICE: str = "en-US-ariana", CLAY_VOI
         str: Path to the generated podcast audio file.
     """
     clips_sequences = generate_clips(data, KATHERINE_VOICE, CLAY_VOICE)
+    if not clips_sequences:
+        raise ValueError("No audio clips generated.")
     print(f"Audio clips sequence: {clips_sequences}")
 
     timestamp = datetime.timestamp(datetime.now())
-    podcast_file = f"podcast_{timestamp}.wav"
+    podcast_file = f"podcast_{timestamp}.mp3"
 
     combine_audio_files(clips_sequences, podcast_file)
-    
+    print("podcast_file:", podcast_file)
     return podcast_file
 
 
 
 if __name__ == "__main__":
-    with open("agents/test_convo.json", "r") as f:
+    with open("backend\\test_convo.json", "r") as f:
         data = json.load(f)
     print(data.keys())
     KATHERINE_VOICE = "en-US-ariana"

@@ -7,6 +7,7 @@ __pycache__/
 *.png
 *.jpeg
 *.wav
+*.mp3
 
 *.streamlit
 *.streamlit/*
