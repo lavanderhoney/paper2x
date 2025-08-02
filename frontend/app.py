@@ -15,6 +15,32 @@ client.set_project(st.secrets["auth"]["PROJECT_ID"])  # Appwrite project ID
 client.set_key(st.secrets["auth"]["API_KEY"])  # Appwrite API key
 
 account = Account(client) # to allow new users to register, create session, etc.
+# Load backend URL from secrets
+backend_url = st.secrets["backend"]["url"]
+health_url = f"{backend_url}/health"
+
+# Check if backend is available
+def wait_for_backend(timeout=60, check_interval=3):
+    start_time = time.time()
+    with st.spinner("🔄 Waking up the backend to spin up... please wait."):
+        # st.markdown()
+        while time.time() - start_time < timeout:
+            try:
+                res = requests.get(health_url, timeout=2)
+                if res.status_code == 200:
+                    return True
+            except requests.exceptions.RequestException:
+                pass
+            time.sleep(check_interval)
+    return False
+
+# Perform the health check
+if not wait_for_backend():
+    st.error("🚫 Backend could not be reached. Please try again later.")
+    st.stop()
+
+# Now load rest of your app
+st.success("✅ Backend is up!")
 
 #TO-DO: simplify this code with callbacks
 def login_ui():

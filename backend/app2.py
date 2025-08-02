@@ -30,6 +30,9 @@ class PPTResponse(BaseModel):
 def read_root():
     return {"message": "Hello, World!"}
 
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
 #from the frontend, get want_ppt along with the file
 @app.post("/generate")
 async def generate( want_ppt: bool = Form(...), file: UploadFile = File(...)):
@@ -51,8 +54,10 @@ async def generate( want_ppt: bool = Form(...), file: UploadFile = File(...)):
         
         # Run the graph workflow
         result: Dict[str, Any] = graph.invoke(state)
-        # result = dict() # debug
-        print("Graph invocation result:", result)
+        if not result:
+            raise HTTPException(status_code=500, detail="Graph invocation failed or returned no result.")
+        print(f"Graph invocation successful")
+        # print("Graph invocation result:", result)
         # if not result:
         #     raise HTTPException(status_code=500, detail="Graph invocation failed or returned no result.")
         

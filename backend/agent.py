@@ -5,7 +5,7 @@ import pymupdf as fitz
 from langchain_groq import ChatGroq
 from langchain.prompts import ChatPromptTemplate, PromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from typing import List, Dict, Any
-from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
 from langgraph.graph import StateGraph, START, END
 from dotenv import load_dotenv
 from typing import List, Dict, Any, Optional
@@ -130,7 +130,9 @@ def generate_summary(state: ResPaperExtractState):
     summary_prompt = PromptTemplate.from_template(summary_template_string_2)
     # Generate summary with LLM
     summary_text = llm.invoke(summary_prompt.format(text=extracted_text))  # No chunking, single LLM call
-    
+    parser = StrOutputParser()
+    summary_text = parser.invoke(summary_text)  # Parse the output to get a clean string
+    print("summary_text:", summary_text, type(summary_text))
     return {"summary_text": summary_text}
 
 def generate_conversation(state: ResPaperExtractState):
