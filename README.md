@@ -1,157 +1,177 @@
-# Paper-2X
+Of course\! Here is an updated README for your Paper2X project, reflecting the current structure and functionality based on the files you've provided.
 
-Paper2X is an AI-powered tool that leverages Gemini 1.5 Flash and LangGraph, to transform research papers into engaging presentations and audio summaries. The project provides a backend service to process document inputs and convert them into structured PPTs.
+-----
 
+# Paper2X: AI-Powered Research Paper Transformer
+
+Paper2X is an intelligent tool designed to make academic research more accessible and engaging. By leveraging Large Language Models with a sophisticated agentic workflow built on LangGraph, it transforms dense research papers into two digestible formats: professional PowerPoint presentations and conversational audio podcasts.
+
+The project is built with a decoupled frontend-backend architecture, featuring a Streamlit web interface and a FastAPI backend, making it scalable and easy to use.
+
+A basic e-mail based authentication is setup using Appwrite. It only performs login/sign-up, and doesn't yet store/cache any data for user. That's an upcoming feature.
+
+----
+## Live Demo
+You can try Paper2X live here:
+
+➡️ [Paper2X on Streamlit](https://lavanderhoney-paper2x.streamlit.app/)
+
+Important Note: The backend is deployed on Render's free tier. If the application is not active, the backend service may take a minute or two to spin up. If you encounter an error on the first try, please wait a moment and then reload the page.
+
+----
 ## Project Motivation
 
-Understanding and presenting research papers can be time-consuming. Paper2X streamlines this process by automating content extraction, slide creation, and audio generation, making research more accessible to students, educators, and professionals.
+Comprehending and disseminating research findings is often a time-consuming and challenging task for students, educators, and professionals alike. Paper2X was created to streamline this process by automating the creation of high-quality presentation materials and audio summaries. This not only saves significant time but also helps in making complex information more accessible to a broader audience.
 
-Also, this project is a continuation from my team's partial solution for the Research Remix track sponserd by Cactus Communications during the MineD Hackathon 2025, where some features of this project were the expected outcomes.
+This project is also a continuation of a solution developed for the Research Remix track sponsored by Cactus Communications during the MineD Hackathon 2025.
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Features](#features)
-- [Architecture](#architecture)
-- [Installation](#installation)
-- [Usage](#usage)
-  - [Running the API](#running-the-api)
-  - [Frontend Integration](#frontend-integration)
-- [Configuration](#configuration)
-- [Dependencies](#dependencies)
-- [Contributing](#contributing)
-- [License](#license)
-- [Contact](#contact)
-
-## Overview
-
-The goal of Paper-2-X is to streamline the creation of presentation slides from academic papers or long-form documents. By combining the power of FastAPI with state-of-the-art language models (via LangChain and its ecosystem), the application parses input documents, extracts key points, and generates a coherent slide deck.
+  - [Features](#features)
+  - [Architecture](#architecture)
+  - [Project Structure](#project-structure)
+  - [Installation](#installation)
+  - [Usage](#usage)
+  - [Configuration](#configuration)
+  - [Contributing](#contributing)
+  - [License](#license)
 
 ## Features
 
-- **Research Paper to Presentation:** Automatically generates PowerPoint presentations (in .pptx) from academic papers.
-    Uses:
-    - `PyMuPDFLoader` to extract text and images from the research articles
-    -  Gemini 1.5 Flash to generate slides' content for the PPT
-    - `pptx` library for creating the PPT from text. Includes support for a few themes, which are created using pptx library itself.
-- **Research Paper to Podcast Transcript:** Converts the research paper content into a transcripts for a narrated-like podcast.
-- **API Deployment:** This entire LangGraph workflow is deployed as a FastAPI app, and has endpoints to get the specific content (check [Running The API](#running-the-api) section)
-
+  - **Automated Presentation Generation**: Upload a research paper in PDF format and receive a well-structured PowerPoint (`.pptx`) presentation.
+      - Extracts text and images automatically from the PDF document.
+      - Intelligently generates slide content, including titles, bullet points, and speaker notes for key sections like Introduction, Methods, Results, and Conclusion.
+      - Identifies and embeds relevant figures and tables from the paper into a dedicated "Graphics" slide.
+      - Offers multiple presentation themes (`modern`, `vintage`, `corporate`, etc.) for aesthetic customization.
+  - **Automated Podcast Generation**: Converts the research paper into an engaging, conversational audio podcast.
+      - Generates a summary of the paper tailored for a conversational format.
+      - Creates a podcast script with two personas, "Katherine" (the expert) and "Clay" (the inquirer), to explain the paper's concepts in an easy-to-understand dialogue.
+      - Uses a Text-to-Speech service (Murf AI) to generate high-quality audio clips for each line of dialogue.
+      - Stitches the audio clips together into a final MP3 file, complete with pauses between speakers.
+  - **Web Interface**: A user-friendly frontend built with Streamlit allows for easy file uploads, option selection (PPT or Podcast), and downloading of the final output.
+  - **Agentic Backend**: The core logic is powered by an agentic workflow using LangGraph, which orchestrates multiple steps like PDF parsing, content generation, and file creation in a robust and stateful manner.
+  - **User Authentication**: The frontend includes a simple login and registration system to manage user access with Appwrite.
 
 ## Architecture
 
-The application follows a modular design:
-- **API Layer:** Implemented with FastAPI and served using Uvicorn.
-- **Processing Agents:** Under the `agents` directory, different agents handle subtasks such as text extraction, summarization, and PPT slide creation.
-- **Configuration:** Environment variables (using [python-dotenv](https://pypi.org/project/python-dotenv/)) allow configuration for API keys and other secrets.
+The application is split into a frontend and a backend, which can be run independently.
+
+1.  **Frontend (`frontend/app.py`)**:
+
+      * A **Streamlit** application provides the user interface.
+      * Handles user authentication, file uploads, and interaction with the backend API.
+      * It allows users to upload a PDF, choose between generating a presentation or a podcast, and then download the resulting file.
+
+2.  **Backend (`backend/app2.py`)**:
+
+      * A **FastAPI** server exposes an API endpoint (`/generate`) to handle file processing requests.
+      * It receives the PDF and a flag indicating whether to create a PPT or a podcast.
+      * The core logic resides in an agentic workflow (`backend/agent.py`).
+
+3.  **Agentic Workflow (`backend/agent.py`)**:
+
+      * Built using **LangGraph**, it defines a stateful graph that processes the research paper.
+      * **State (`ResPaperExtractState`)**: A Pydantic model holds the data as it flows through the graph, including the PDF path, extracted text/images, generated content, and final file paths.
+      * **Nodes**: Each step in the process is a node in the graph:
+          * `load_pdf`: Extracts text and images from the uploaded PDF using `PyMuPDF`.
+          * `get_data`: (For PPTs) Calls a Large Language Model (LLM) to generate structured JSON content for the presentation slides. It then uses the `python-pptx` library to create the `.pptx` file.
+          * `generate_summary`: (For Podcasts) Calls the LLM to create a conversational summary of the paper.
+          * `generate_conversation`: Uses the summary to generate a two-person dialogue script. It then calls utility functions in `podcast_utils.py` to convert the script to an audio file.
+      * **Conditional Edges**: The graph uses a conditional edge (`check_ppt`) to decide which path to take (PPT or Podcast) based on the user's request.
+
+## Project Structure
+
+The repository is organized into distinct backend and frontend directories, as shown in the file `image_fe7a2d.png`.
+
+```
+📂 paper2x/
+├── 📄 LICENSE.md
+├── 📄 README.md
+├── 📄 todo.md
+├── 📂 backend/
+│   ├── 📄 agent.py              # Core LangGraph agentic workflow
+│   ├── 📄 app2.py               # FastAPI application
+│   ├── 📄 podcast_utils.py      # Utilities for podcast generation
+│   ├── 📄 ppt_utils.py          # Utilities for PPT generation
+│   ├── 📄 requirements.txt
+│   ├── 📄 test_convo.json       # Sample conversation output
+│   ├── 📄 workflow_testing.ipynb # Notebook for testing the agent
+│   ├── 📂 extracted_images/    # Stores images extracted from PDFs
+│   ├── 📂 static/               # Stores generated PPT files
+│   └── 📂 uploaded_pdfs/       # Stores uploaded PDF files
+└── 📂 frontend/
+    ├── 📄 app.py                # Streamlit frontend application
+    └── 📄 requirements.txt
+```
 
 ## Installation
 
-1. **Clone the repository:**
+1.  **Clone the repository:**
 
-   ```bash
-   git clone https://github.com/lavanderhoney/paper2x.git
-   cd paper2x
-   ```
+    ```bash
+    git clone https://github.com/lavanderhoney/paper2x.git
+    cd paper2x
+    ```
 
-2. **Create and activate a virtual environment (optional but recommended):**
+2.  **Set up the Backend:**
 
-   ```bash
-   python -m venv venv
-   source venv/bin/activate   # On Windows use: venv\Scripts\activate
-   ```
+    ```bash
+    cd backend
+    pip install -r requirements.txt
+    ```
 
-3. **Install the required packages:**
+3.  **Set up the Frontend:**
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+    ```bash
+    cd ../frontend
+    pip install -r requirements.txt
+    ```
 
 ## Usage
 
-This project contains an API which serves the langgraph workflow, but not the PPT generation and the podcast. The API is experimental only.
+1.  **Configure Environment Variables**: Create a `.env` file in the `backend` directory and add your API keys. See the [Configuration](#configuration) section for details.
 
-To use the features, run the `agents\workflow_testing.ipynb` notebook.
+2.  **Run the Backend Server**:
+    From the `backend` directory, run:
 
-### Running the API
+    ```bash
+    uvicorn app2:app --reload
+    ```
 
-```bash
-uvicorn app.main:app --reload
-```
-Access the API at `http://127.0.0.1:8000/docs`
+    The API will be available at `http://127.0.0.1:8000`.
 
-#### Endpoints
-You can test these endpoints using Postman (as there's no front-end, yet).
-- `POST /generate_ppt`
-    - Upload the research paper as a form data in the body of POST request in the Postman API interface.
-    - This will execute the langgraph workflow, and return a `file_id`. Save this id, as it will be required for further GET requests.
-- `GET/ppt/{file_id}`
-    - Hitting this endpoint, using the `file_id` obtained from the POST request, will return the textual contents for creating the PPT 
-- `GET/summary/{file_id}`
-    - Returns the summary of the research paper, in a form useful for generating the podcast transcript.
-- `GET/convo/{file_id}`
-    - Returns the transcript of the podcast, in a JSON containing lists of dialagoues of two personas: Katherine, and Clay, and a list specifying the order of their dialogues. The datamodel is specified in the `agents\agent.py` as the `Conversation` class.
+3.  **Run the Frontend Application**:
+    From the `frontend` directory, run:
 
-**NOTE**: The purpose behind using the `file_id` thing, is to have a way to store the graph's state in-memory of the API. This violates the property of RESTful API being stateless, but I've implemented this as a temporary way to circumvent executing the graph mutliple times by the same user.
+    ```bash
+    streamlit run app.py
+    ```
 
-## File Structure
-```
-📂 paper2x
-├── agents
-│   ├── extracted_images # Stores the images extracted from the pdf
-│   ├── static # For storing the generated ppts
-│   ├── uploaded_pds # Research papers to be used
-│   ├── agent.py        # Python script for the agentic workflow
-│   ├── app2.py  # FastAPI app entry point
-│   └── workflow_testing.ipynb # Jupyter notebook for agentic workflow testing
-├── requirements.txt
-└── README.md
-```
+    The web interface will open in your browser. You can register a new account or log in, then upload a PDF to generate a presentation or podcast.
 
 ## Configuration
 
-Create a `.env` file and add the following keys:
+Create a `.env` file in the `backend/` directory with the following keys:
 
 ```dotenv
-GOOGLE_API_KEY=your_gemini_api_key
-LANGSMITH_API_KEY=your_langsmith_api_key
-LANGSMITH_ENDPOINT=your_langsmith_endpoint
-LANGSMITH_PROJECT=paper2x_project
-LANGSMITH_TRACING=true
+# For Google Generative AI
+GOOGLE_API_KEY="your_google_api_key"
+
+# For Murf AI (Text-to-Speech)
+MURF_API_KEY="your_murf_api_key"
+
+# For LangSmith (Optional, for tracing)
+LANGSMITH_API_KEY="your_langsmith_api_key"
+LANGSMITH_ENDPOINT="https://api.smith.langchain.com"
+LANGSMITH_PROJECT="your_project_name"
+LANGSMITH_TRACING="true"
 ```
 
-## Dependencies
+You will also need to configure your Streamlit secrets for the Appwrite and backend URL variables used in `frontend/app.py`.
 
-The project depends on a number of Python packages:
+## License
 
-- **Backend & API:**
-  - `fastapi`
-  - `uvicorn`
-- **AI Agents:**
-  - `langchain`
-  - `langgraph`
-  - `langchain_google_genai`
-  - `langchain_core`
-- **Utilities:**
-  - `pydantic`
-  - `python-dotenv`
-  - `python-multipart`
-  - `PyMuPDF`
-  - `typing-extensions`
-  - `uuid`
+This repository is licensed under the **Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License**.
+(see `LICENSE.md` for details) [License](LICENSE.md)
 
-See [requirements.txt](https://github.com/lavanderhoney/paper2x/blob/main/requirements.txt) for the complete list.
-
-## Contributing
-
-Contributions are welcome! If you’d like to help improve Paper-2-X:
-1. Fork the repository.
-2. Create a new branch for your feature or bugfix.
-3. Commit your changes.
-4. Open a pull request detailing your changes.
-
-Please follow the existing code style and include tests for new functionality.
-
-## Contact
-
-For questions, suggestions, or contributions, please open an issue on GitHub or contact the repository owner at your preferred communication channel.
+© 2025 Milap Patel. All rights reserved.

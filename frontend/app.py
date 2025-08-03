@@ -20,7 +20,7 @@ backend_url = st.secrets["backend"]["url"]
 health_url = f"{backend_url}/health"
 
 # Check if backend is available
-def wait_for_backend(timeout=60, check_interval=3):
+def wait_for_backend(timeout=2000, check_interval=3):
     start_time = time.time()
     with st.spinner("🔄 Waking up the backend to spin up... please wait."):
         # st.markdown()
